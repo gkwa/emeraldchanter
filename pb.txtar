@@ -1,0 +1,101 @@
+-- mod/boilerplate.yml --
+
+variables:
+  - name: ProjectName
+    description: The name of the GitLab project
+    type: string
+
+  - name: DeployTokenName
+    description: The name of the deploy token
+    type: string
+    default: "My deploy token"
+
+  - name: ExpiresAt
+    description: The expiration date of the deploy token (YYYY-MM-DD)
+    type: string
+    default: "2024-09-10"
+
+  - name: Scopes
+    description: The list of scopes for the deploy token
+    type: list
+    default:
+      - name: read
+        scopes:
+          - read_repository
+      - name: read_write
+        scopes:
+          - read_repository
+          - write_package_registry
+
+loops:
+  - name: payload
+    iterator: scope
+    collection: Scopes
+    template: payload.json
+    output: payload_{{ .scope.name }}.json
+    variable-mapping:
+      Scopes: scope.scopes
+
+  - name: script
+    iterator: scope
+    collection: Scopes
+    template: script.sh
+    output: script_{{ .scope.name }}.sh
+    variable-mapping:
+      ScopeName: scope.name
+
+-- mod/payload.json --
+{
+  "name": "{{ .DeployTokenName }}",
+  "expires_at": "{{ .ExpiresAt }}",
+  "scopes": [
+    {{- range $index, $scope := .Scopes }}
+    {{- if $index }},{{ end }}
+    "{{ $scope }}"
+    {{- end }}
+  ]
+}
+
+-- mod/script.sh --
+#!/usr/bin/env bash
+
+glab api --method POST --header "Content-Type: application/json" \
+  --input payload_{{ .ScopeName }}.json \
+  /projects/{{ .ProjectName | urlquery }}/deploy_tokens
+
+-- run --
+boilerplate \
+  --template-url mod \
+  --output-folder out \
+  --var ProjectName="streambox/faris" \
+  --var DeployTokenName="My deploy token" \
+  --var ExpiresAt="2024-09-10" \
+  --non-interactive
+
+-- mod/payload.json --
+{
+  "name": "{{ .DeployTokenName }}",
+  "expires_at": "{{ .ExpiresAt }}",
+  "scopes": [
+    {{- range $index, $scope := .Scopes }}
+    {{- if $index }},{{ end }}
+    "{{ $scope }}"
+    {{- end }}
+  ]
+}
+
+-- mod/script.sh --
+#!/usr/bin/env bash
+
+glab api --method POST --header "Content-Type: application/json" \
+  --input payload_{{ .scope.name }}.json \
+  /projects/{{ .ProjectName | urlquery }}/deploy_tokens
+
+-- run --
+boilerplate \
+  --template-url mod \
+  --output-folder out \
+  --var ProjectName="streambox/faris" \
+  --var DeployTokenName="My deploy token" \
+  --var ExpiresAt="2024-09-10" \
+  --non-interactive

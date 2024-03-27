@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+set -e
+set -x
+set -u
+
+# Parse command-line options
+no_cache=false
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -n|--no-cache)
+      no_cache=true
+      shift
+      ;;
+    *)
+      echo "Invalid option: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+bash -x start1
+cd my_project
+
+if $no_cache; then
+  docker build --progress=plain --no-cache -t taylorm/emeraldchanter .
+else
+  docker build --progress=plain -t taylorm/emeraldchanter .
+fi

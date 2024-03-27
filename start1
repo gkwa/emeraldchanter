@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+dir=$script_dir/my_project
+
+mkdir -p $dir
+
+cat >$dir/run <<'EOF'
+#!/usr/bin/env bash
+
+set -x
+set -e
+set -u
+
+set +x
+. .venv/bin/activate
+set -x
+
+python --version
+ansible --version
+molecule --version
+
+
+cat >requirements.yml <<EOF1
+collections:
+- name: 'https://gitlab.com/streambox/faris.git#collections/ansible_collections/foo'
+  type: git
+  version: master
+EOF1
+
+
+cat >/root/.my-credentials <<EOF1
+https://$GITLAB_DEPLOY_USERNAME:$GITLAB_DEPLOY_TOKEN@gitlab.com
+EOF1
+cat /root/.my-credentials
+
+git config --global credential.helper "store --file /root/.my-credentials"
+
+
+
+timeout --verbose 10s ansible-galaxy collection install --requirements-file=requirements.yml
+echo $?
+EOF
+
+
+
+mkdir -p $dir
+cd $dir
+
+cat >Dockerfile <<'EOF'
+FROM python:3.12-slim
+
+ENV PATH="/root/.rye/shims:${PATH}"
+
+RUN apt-get update
+RUN apt-get install -y git curl
+RUN cd /usr/local && sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d
+RUN git clone https://github.com/taylormonacelli/ringgem /opt/ringgem
+RUN task -d /opt/ringgem install-rye-on-linux
+RUN mkdir -p /root/my_project
+WORKDIR /root/my_project
+RUN rye init
+RUN rm -rf src
+RUN rye pin 3.12
+RUN rye add ansible-core
+RUN rye add molecule
+RUN rye add ansible-navigator
+RUN rye sync --quiet
+
+RUN echo cache-buster: $RANDOM
+COPY run-expanded /tmp/run-expanded
+RUN bash -ex /tmp/run-expanded
+
+# Create the entrypoint script
+RUN echo '#!/bin/bash\n\
+    source .venv/bin/activate\n\
+    timeout --verbose 10s ansible-galaxy collection install --requirements-file=requirements.yml\n\
+    bash' > entrypoint.sh && \
+    chmod +x entrypoint.sh
+
+# Set the entrypoint
+ENTRYPOINT ["./entrypoint.sh"]
+EOF

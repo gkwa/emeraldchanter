@@ -1,0 +1,58 @@
+-- mod/boilerplate.yml --
+variables:
+  - name: CommandName
+    description: The name of the command file
+    type: string
+
+  - name: PayloadName
+    description: The name of the payload file
+    type: string
+
+  - name: PayloadContent
+    description: The content of the payload file
+    type: string
+
+  - name: ExpiresAt
+    description: The expiration date for the deploy token
+    type: string
+    default: "2024-09-10"
+
+-- run --
+#!/usr/bin/env bash
+
+boilerplate \
+  --template-url mod \
+  --var-file mod/vars.yml \
+  --output-folder out \
+  --non-interactive
+
+-- mod/command.sh.tpl --
+#!/usr/bin/env bash
+
+glab api --method POST --header "Content-Type: application/json" \
+--input {{ .PayloadName }} \
+/projects/streambox%2Ffaris/deploy_tokens
+
+-- mod/payload.json.tpl --
+{
+  "name": "My deploy token",
+  "expires_at": "{{ .ExpiresAt }}",
+  {{ .PayloadContent }}
+}
+
+
+-- mod/vars.yml --
+- CommandName: command01
+  PayloadName: payload01.json
+  ExpiresAt: "2024-09-10"
+  PayloadContent: |
+    "scopes": [
+      "read_repository",
+      "write_package_registry"
+    ]
+
+- CommandName: command02
+  PayloadName: payload02.json
+  ExpiresAt: "2024-09-10"
+  PayloadContent: |
+    "scopes": "read_repository"
